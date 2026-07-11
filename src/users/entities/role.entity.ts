@@ -12,6 +12,9 @@ export class Role {
   @Column({ nullable: true })
   description: string;
 
+  @Column({ type: 'jsonb', nullable: true })
+  permissions: any;
+
   @OneToMany(() => User, (user) => user.role)
   users: User[];
 }

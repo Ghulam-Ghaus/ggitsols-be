@@ -3,6 +3,7 @@ import {
   ConflictException,
   NotFoundException,
   UnauthorizedException,
+  ForbiddenException,
   OnModuleInit,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -24,20 +25,66 @@ export class UsersService implements OnModuleInit {
     private rolesRepository: Repository<Role>,
     private jwtService: JwtService,
     private notificationService: NotificationService,
-  ) {}
+  ) { }
 
   async onModuleInit() {
     await this.seedRoles();
   }
 
   async seedRoles() {
+    const modules = ['users', 'admissions', 'courses', 'attendance', 'finance', 'exams', 'settings'];
+
+    const getAdminPermissions = () => {
+      const perms = {};
+      modules.forEach(m => {
+        perms[m] = { view: true, create: true, update: true, delete: true };
+      });
+      return perms;
+    };
+
+    const getTeacherPermissions = () => {
+      const perms = {};
+      modules.forEach(m => {
+        const isAcademic = ['courses', 'attendance', 'exams'].includes(m);
+        perms[m] = {
+          view: isAcademic || m === 'users',
+          create: isAcademic,
+          update: isAcademic,
+          delete: false
+        };
+      });
+      return perms;
+    };
+
+    const getStudentPermissions = () => {
+      const perms = {};
+      modules.forEach(m => {
+        const isAcademic = ['courses', 'attendance', 'exams'].includes(m);
+        perms[m] = {
+          view: isAcademic,
+          create: false,
+          update: false,
+          delete: false
+        };
+      });
+      return perms;
+    };
+
+    const getGuestPermissions = () => {
+      const perms = {};
+      modules.forEach(m => {
+        perms[m] = { view: false, create: false, update: false, delete: false };
+      });
+      return perms;
+    };
+
     const rolesToSeed = [
-      { id: 1, name: 'ADMIN', description: 'System Administrator with full access' },
-      { id: 2, name: 'TEACHER', description: 'Academic staff members' },
-      { id: 3, name: 'STUDENT', description: 'Enrolled students' },
-      { id: 4, name: 'PARENT', description: 'Parents or guardians of students' },
-      { id: 5, name: 'APPLICANT', description: 'Prospective students applying for admission' },
-      { id: 6, name: 'PUBLIC', description: 'Guest/non-registered visitors' },
+      { id: 1, name: 'ADMIN', description: 'System Administrator with full access', permissions: getAdminPermissions() },
+      { id: 2, name: 'TEACHER', description: 'Academic staff members', permissions: getTeacherPermissions() },
+      { id: 3, name: 'STUDENT', description: 'Enrolled students', permissions: getStudentPermissions() },
+      { id: 4, name: 'PARENT', description: 'Parents or guardians of students', permissions: getStudentPermissions() },
+      { id: 5, name: 'APPLICANT', description: 'Prospective students applying for admission', permissions: getGuestPermissions() },
+      { id: 6, name: 'PUBLIC', description: 'Guest/non-registered visitors', permissions: getGuestPermissions() },
     ];
 
     for (const r of rolesToSeed) {
@@ -45,13 +92,35 @@ export class UsersService implements OnModuleInit {
       if (!exists) {
         await this.rolesRepository.save(this.rolesRepository.create(r));
         console.log(`[Seed] Created role: ${r.name}`);
+      } else if (!exists.permissions) {
+        exists.permissions = r.permissions;
+        await this.rolesRepository.save(exists);
+        console.log(`[Seed] Backfilled permissions for role: ${r.name}`);
       }
     }
   }
 
+  async findAllRoles(): Promise<Role[]> {
+    return this.rolesRepository.find();
+  }
+
+  async updateRolePermissions(id: number, permissions: any, description?: string): Promise<Role> {
+    const role = await this.rolesRepository.findOne({ where: { id } });
+    if (!role) {
+      throw new NotFoundException(`Role with ID ${id} not found`);
+    }
+
+    role.permissions = permissions;
+    if (description !== undefined) {
+      role.description = description;
+    }
+
+    return this.rolesRepository.save(role);
+  }
+
   async create(createUserDto: CreateUserDto): Promise<User> {
     const { email, password, roleId, ...rest } = createUserDto;
-    
+
     // Check if email already registered
     const existingUser = await this.usersRepository.findOne({ where: { email } });
     if (existingUser) {
@@ -60,6 +129,11 @@ export class UsersService implements OnModuleInit {
 
     // Default to 'STUDENT' (role ID 3) if no role is supplied
     const finalRoleId = roleId || 3;
+
+    if (finalRoleId === 1) {
+      throw new ForbiddenException('Admin roles can only be created or assigned directly in the database');
+    }
+
     const role = await this.rolesRepository.findOne({ where: { id: finalRoleId } });
     if (!role) {
       throw new NotFoundException(`Role with ID ${finalRoleId} not found`);
@@ -77,7 +151,7 @@ export class UsersService implements OnModuleInit {
     });
 
     const savedUser = await this.usersRepository.save(user);
-    
+
     // Send a system notification
     await this.notificationService.sendNotification(
       savedUser.id,
@@ -110,6 +184,9 @@ export class UsersService implements OnModuleInit {
     const { password, roleId, ...rest } = updateUserDto;
 
     if (roleId) {
+      if (roleId === 1) {
+        throw new ForbiddenException('Admin roles can only be created or assigned directly in the database');
+      }
       const role = await this.rolesRepository.findOne({ where: { id: roleId } });
       if (!role) {
         throw new NotFoundException(`Role with ID ${roleId} not found`);
@@ -150,7 +227,14 @@ export class UsersService implements OnModuleInit {
       throw new UnauthorizedException('Your account is currently deactivated');
     }
 
-    const payload = { id: user.id, email: user.email, role: user.role.name };
+    const payload = { 
+      id: user.id, 
+      email: user.email, 
+      role: user.role.name, 
+      permissions: user.role.permissions,
+      firstName: user.firstName,
+      lastName: user.lastName
+    };
     const accessToken = await this.jwtService.signAsync(payload);
 
     const userResponse = { ...user };

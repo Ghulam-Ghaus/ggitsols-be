@@ -17,9 +17,9 @@ export class AuditLogInterceptor implements NestInterceptor {
     const request = ctx.getRequest();
     const { method, url, ip, user } = request;
 
-    // Only log mutating actions that modify state
-    const mutatingMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
-    if (!mutatingMethods.includes(method)) {
+    // Log all CRUD actions: Create (POST), Read (GET), Update (PUT/PATCH), Delete (DELETE)
+    const crudMethods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'];
+    if (!crudMethods.includes(method)) {
       return next.handle();
     }
 

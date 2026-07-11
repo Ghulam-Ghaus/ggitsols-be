@@ -45,6 +45,23 @@ export class UsersController {
     return this.usersService.findAll();
   }
 
+  @Get('roles')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  findAllRoles() {
+    return this.usersService.findAllRoles();
+  }
+
+  @Patch('roles/:id')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  updateRolePermissions(
+    @Param('id') id: string,
+    @Body() body: { permissions: any; description?: string },
+  ) {
+    return this.usersService.updateRolePermissions(Number(id), body.permissions, body.description);
+  }
+
   @Get(':id')
   @UseGuards(AuthGuard)
   async findOne(@Param('id') id: string, @Request() req: any) {
