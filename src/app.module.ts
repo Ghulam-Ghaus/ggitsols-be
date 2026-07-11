@@ -7,6 +7,8 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { CommonModule } from './common/common.module';
 import { UsersModule } from './users/users.module';
+import { VoiceModule } from './voice/voice.module';
+import { NotificationModule } from './notification/notification.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor';
@@ -50,6 +52,8 @@ import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor
     
     CommonModule,
     UsersModule,
+    VoiceModule,
+    NotificationModule,
   ],
   controllers: [AppController],
   providers: [
