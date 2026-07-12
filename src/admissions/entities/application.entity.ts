@@ -59,6 +59,12 @@ export class Application {
   @Column({ type: 'varchar', length: 30, default: 'PENDING' })
   status: 'PENDING' | 'APPROVED' | 'REJECTED';
 
+  @Column({ type: 'varchar', length: 50, name: 'payment_option', default: 'FULL_PAYMENT' })
+  paymentOption: 'FULL_PAYMENT' | 'INSTALLMENT';
+
+  @Column({ type: 'boolean', name: 'claim_free_freelancing', default: false })
+  claimFreeFreelancing: boolean;
+
   @OneToMany(() => ApplicationDocument, (doc: ApplicationDocument) => doc.application, { cascade: true })
   documents: ApplicationDocument[];
 

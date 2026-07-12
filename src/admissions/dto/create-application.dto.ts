@@ -75,4 +75,12 @@ export class CreateApplicationDto {
   @ValidateNested({ each: true })
   @Type(() => DocumentDto)
   documents?: DocumentDto[];
+
+  @IsString()
+  @IsOptional()
+  paymentOption?: 'FULL_PAYMENT' | 'INSTALLMENT';
+
+  @IsBoolean()
+  @IsOptional()
+  claimFreeFreelancing?: boolean;
 }

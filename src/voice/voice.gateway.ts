@@ -148,6 +148,28 @@ export class VoiceGateway implements OnGatewayConnection, OnGatewayDisconnect {
         };
 
         geminiWs.send(JSON.stringify(setupMessage));
+
+        // Immediately trigger spoken greeting after setup completes
+        setTimeout(() => {
+          if (geminiWs.readyState === WebSocket.WebSocket.OPEN) {
+            const greetingMessage = {
+              clientContent: {
+                turns: [
+                  {
+                    role: 'user',
+                    parts: [
+                      {
+                        text: "Introduce yourself exactly with this Roman Urdu greeting phrase: 'Assalam o alikum ma haider hun ma apki madad kesy kr sakta hun, how can i help you today'. Speak warmly."
+                      }
+                    ]
+                  }
+                ],
+                turnComplete: true
+              }
+            };
+            geminiWs.send(JSON.stringify(greetingMessage));
+          }
+        }, 500);
       });
 
       geminiWs.on('message', (data: string) => {

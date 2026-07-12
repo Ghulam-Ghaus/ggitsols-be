@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, ManyToMany } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToOne, JoinColumn, ManyToMany, ManyToOne } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
 import { Parent } from './parent.entity';
+import { Batch } from './batch.entity';
 
 @Entity('students')
 export class Student {
@@ -19,6 +20,13 @@ export class Student {
 
   @Column({ type: 'date', name: 'admission_date', nullable: true })
   admissionDate: string;
+
+  @Column({ type: 'bigint', name: 'batch_id', nullable: true })
+  batchId: number | null;
+
+  @ManyToOne(() => Batch, (batch) => batch.students, { onDelete: 'SET NULL', nullable: true })
+  @JoinColumn({ name: 'batch_id' })
+  batch: Batch;
 
   @ManyToMany(() => Parent, (parent) => parent.students)
   parents: Parent[];
