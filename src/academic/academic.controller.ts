@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { AcademicService } from './academic.service';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -126,6 +126,29 @@ export class AcademicController {
   @UseGuards(AuthGuard)
   async getMyStudentProfile(@Request() req: any) {
     return this.academicService.findStudentByUserId(req.user.id);
+  }
+
+  @Get('students/me/details')
+  @UseGuards(AuthGuard)
+  async getMyStudentDetails(@Request() req: any) {
+    return this.academicService.getStudentFullDetails(req.user.id);
+  }
+
+  @Get('students')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async getAllStudents() {
+    return this.academicService.findAllStudents();
+  }
+
+  @Patch('students/:id')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async updateStudent(
+    @Param('id') id: string,
+    @Body() body: { registrationNo?: string; batchId?: number | null },
+  ) {
+    return this.academicService.updateStudent(Number(id), body);
   }
 
   @Get('students/user/:userId/details')

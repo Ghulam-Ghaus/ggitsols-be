@@ -65,7 +65,26 @@ export class Application {
   @Column({ type: 'boolean', name: 'claim_free_freelancing', default: false })
   claimFreeFreelancing: boolean;
 
-  @OneToMany(() => ApplicationDocument, (doc: ApplicationDocument) => doc.application, { cascade: true })
+  // Education details
+  @Column({ type: 'varchar', length: 100, name: 'highest_qualification', nullable: true })
+  highestQualification: string;
+
+  @Column({ type: 'varchar', length: 150, name: 'institution_name', nullable: true })
+  institutionName: string;
+
+  @Column({ type: 'varchar', length: 150, name: 'board_university', nullable: true })
+  boardUniversity: string;
+
+  @Column({ type: 'integer', name: 'completion_year', nullable: true })
+  completionYear: number;
+
+  @Column({ type: 'varchar', length: 20, name: 'obtained_gpa', nullable: true })
+  obtainedGpa: string;
+
+  @Column({ type: 'varchar', length: 255, name: 'password_hash', nullable: true })
+  passwordHash: string;
+
+  @OneToMany(() => ApplicationDocument, (doc: ApplicationDocument) => doc.application, { cascade: true, nullable: true })
   documents: ApplicationDocument[];
 
   @CreateDateColumn({ type: 'timestamp', name: 'created_at' })

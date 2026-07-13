@@ -30,4 +30,20 @@ export class Student {
 
   @ManyToMany(() => Parent, (parent) => parent.students)
   parents: Parent[];
+
+  // Education Details
+  @Column({ type: 'varchar', length: 100, name: 'highest_qualification', nullable: true })
+  highestQualification: string;
+
+  @Column({ type: 'varchar', length: 150, name: 'institution_name', nullable: true })
+  institutionName: string;
+
+  @Column({ type: 'varchar', length: 150, name: 'board_university', nullable: true })
+  boardUniversity: string;
+
+  @Column({ type: 'integer', name: 'completion_year', nullable: true })
+  completionYear: number;
+
+  @Column({ type: 'varchar', length: 20, name: 'obtained_gpa', nullable: true })
+  obtainedGpa: string;
 }

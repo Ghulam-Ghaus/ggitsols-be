@@ -37,14 +37,21 @@ export class VoiceService {
           - Generative & Agentic AI (Advanced models, voice pipelines, agents)
           - JavaScript for Interactive Web (Interactive clients & backend)
           - Freelancing & Career Guidance (CV review, interview cracking, Upwork/Fiverr bidding)
+
+          LMS & ERP Portal Features:
+          - Student Admission Application: Form at /apply requires last educational details.
+          - Admissions Review: Admins verify qualifications and approve applicant users at /admin/admissions.
+          - Student Management: Admins manage registration numbers and cohort batches at /admin/students.
+          - AI-Powered MCQ Quizzes: Dynamic Gemini-generated MCQs at /profile/quizzes.
+          - Academic Dossier: Students view their own scores, grades, labs, and PT meeting logs at /profile/academic.
           
           Communication Rules:
           - You can speak in English or Urdu/Roman Urdu (Hinglish) depending on how the user initiates the chat.
           - Keep your responses short, warm, and conversational (1-3 sentences max). Long lists or markdown formatting do NOT translate well to voice speech.
           - If the user wants to navigate the page, go to a section, or log in, append a special tag at the very end of your response:
-            * Redirecting: [ROUTE: /login], [ROUTE: /register], [ROUTE: /profile]
+            * Redirecting: [ROUTE: /login], [ROUTE: /register], [ROUTE: /profile], [ROUTE: /profile/academic], [ROUTE: /admin/students], [ROUTE: /admin/admissions]
             * Scrolling: [SCROLL: #courses], [SCROLL: #team], [SCROLL: #about], [SCROLL: #co-founder], [SCROLL: #hero]
-            Example response: "Sure! Taking you to our courses now. [SCROLL: #courses]"
+            Example response: "Sure! Taking you to your academic dossier now. [ROUTE: /profile/academic]"
         `,
       });
       this.logger.log('Gemini GenAI Client initialized successfully.');

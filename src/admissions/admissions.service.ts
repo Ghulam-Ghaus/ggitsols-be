@@ -31,9 +31,13 @@ export class AdmissionsService {
    * Submit a new student application
    */
   async apply(dto: CreateApplicationDto): Promise<Application> {
-    const { documents, ...rest } = dto;
+    const { documents, password, ...rest } = dto;
     
     const app = this.applicationRepository.create(rest);
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      app.passwordHash = await bcrypt.hash(password, salt);
+    }
     const savedApp = await this.applicationRepository.save(app);
 
     if (documents && documents.length > 0) {
@@ -49,9 +53,8 @@ export class AdmissionsService {
     // Provision User and Student profiles immediately
     let user = await this.userRepository.findOne({ where: { email: savedApp.email } });
     if (!user) {
-      // Hash a default password: GGIT1234
-      const salt = await bcrypt.genSalt(10);
-      const passwordHash = await bcrypt.hash('GGIT1234', salt);
+      // Use the hashed application password or fall back to default GGIT1234
+      const passwordHash = savedApp.passwordHash || await bcrypt.hash('GGIT1234', await bcrypt.genSalt(10));
 
       // Split fullName into firstName & lastName
       const nameParts = savedApp.fullName.trim().split(/\s+/);
@@ -263,9 +266,8 @@ export class AdmissionsService {
       let user = await this.userRepository.findOne({ where: { email: app.email } });
       
       if (!user) {
-        // Hash a default password: e.g. GGIT1234
-        const salt = await bcrypt.genSalt(10);
-        const passwordHash = await bcrypt.hash('GGIT1234', salt);
+        // Use the hashed application password or fall back to default GGIT1234
+        const passwordHash = app.passwordHash || await bcrypt.hash('GGIT1234', await bcrypt.genSalt(10));
 
         // Split fullName into firstName & lastName
         const nameParts = app.fullName.trim().split(/\s+/);
@@ -292,6 +294,11 @@ export class AdmissionsService {
           userId: user.id,
           registrationNo,
           admissionDate: new Date().toISOString().split('T')[0], // yyyy-mm-dd
+          highestQualification: app.highestQualification,
+          institutionName: app.institutionName,
+          boardUniversity: app.boardUniversity,
+          completionYear: app.completionYear,
+          obtainedGpa: app.obtainedGpa,
         });
         student = await this.studentRepository.save(student);
       }

@@ -83,4 +83,8 @@ export class CreateApplicationDto {
   @IsBoolean()
   @IsOptional()
   claimFreeFreelancing?: boolean;
+
+  @IsString()
+  @IsOptional()
+  password?: string;
 }
