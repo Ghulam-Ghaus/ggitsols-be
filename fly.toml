@@ -6,6 +6,9 @@
 app = 'backend-blue-raindrop-2736'
 primary_region = 'sin'
 
+[env]
+  ALLOWED_ORIGINS = 'https://frontend-plucky-ocean-5046.fly.dev'
+
 [build]
 [http_service]
   internal_port = 3000
