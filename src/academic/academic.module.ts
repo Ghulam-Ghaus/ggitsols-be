@@ -8,12 +8,27 @@ import { Quiz } from './entities/quiz.entity';
 import { QuizAttempt } from './entities/quiz-attempt.entity';
 import { LabSubmission } from './entities/lab-submission.entity';
 import { MeetingReview } from './entities/meeting-review.entity';
+import { Attendance } from './entities/attendance.entity';
+import { AttendanceRecord } from './entities/attendance-record.entity';
+import { TeacherAttendance } from './entities/teacher-attendance.entity';
 import { AcademicService } from './academic.service';
 import { AcademicController } from './academic.controller';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Course, Batch, Student, User, Quiz, QuizAttempt, LabSubmission, MeetingReview]),
+    TypeOrmModule.forFeature([
+      Course,
+      Batch,
+      Student,
+      User,
+      Quiz,
+      QuizAttempt,
+      LabSubmission,
+      MeetingReview,
+      Attendance,
+      AttendanceRecord,
+      TeacherAttendance,
+    ]),
   ],
   providers: [AcademicService],
   controllers: [AcademicController],

@@ -16,6 +16,8 @@ async function bootstrap() {
     'http://localhost:9001',
     'http://127.0.0.1:9001',
     'https://frontend-plucky-ocean-5046.fly.dev',
+    'https://ggitsols.com',
+    'https://www.ggitsols.com',
   ];
 
   const allowedOriginsEnv = configService.get<string>('ALLOWED_ORIGINS', '');

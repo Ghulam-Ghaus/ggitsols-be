@@ -10,6 +10,10 @@ import { Quiz } from './entities/quiz.entity';
 import { QuizAttempt } from './entities/quiz-attempt.entity';
 import { LabSubmission } from './entities/lab-submission.entity';
 import { MeetingReview } from './entities/meeting-review.entity';
+import { Attendance } from './entities/attendance.entity';
+import { AttendanceRecord } from './entities/attendance-record.entity';
+import { TeacherAttendance } from './entities/teacher-attendance.entity';
+import { User } from '../users/entities/user.entity';
 
 @Injectable()
 export class AcademicService {
@@ -30,6 +34,14 @@ export class AcademicService {
     private readonly labSubmissionRepository: Repository<LabSubmission>,
     @InjectRepository(MeetingReview)
     private readonly meetingReviewRepository: Repository<MeetingReview>,
+    @InjectRepository(Attendance)
+    private readonly attendanceRepository: Repository<Attendance>,
+    @InjectRepository(AttendanceRecord)
+    private readonly attendanceRecordRepository: Repository<AttendanceRecord>,
+    @InjectRepository(TeacherAttendance)
+    private readonly teacherAttendanceRepository: Repository<TeacherAttendance>,
+    @InjectRepository(User)
+    private readonly userRepository: Repository<User>,
     private readonly configService: ConfigService,
   ) {
     const apiKey = this.configService.get<string>('GEMINI_API_KEY');
@@ -530,5 +542,303 @@ export class AcademicService {
     }
 
     return this.studentRepository.save(student);
+  }
+
+  // ==========================================
+  // STUDENT ATTENDANCE MODULE
+  // ==========================================
+
+  async submitStudentAttendance(
+    batchId: number,
+    date: string,
+    takenByUserId: string,
+    records: { studentId: number; status: string; remarks?: string }[],
+  ): Promise<Attendance> {
+    await this.findOneBatch(batchId);
+
+    let attendance = await this.attendanceRepository.findOne({
+      where: { batchId, date },
+    });
+
+    if (!attendance) {
+      attendance = this.attendanceRepository.create({
+        batchId,
+        date,
+        takenByUserId,
+      });
+    } else {
+      attendance.takenByUserId = takenByUserId;
+    }
+    attendance = await this.attendanceRepository.save(attendance);
+
+    for (const rec of records) {
+      const validStatuses = ['PRESENT', 'ABSENT', 'LATE', 'EXCUSED'];
+      if (!validStatuses.includes(rec.status)) {
+        throw new BadRequestException(`Invalid status: ${rec.status}`);
+      }
+
+      let record = await this.attendanceRecordRepository.findOne({
+        where: { attendanceId: attendance.id, studentId: rec.studentId },
+      });
+
+      if (!record) {
+        record = this.attendanceRecordRepository.create({
+          attendanceId: attendance.id,
+          studentId: rec.studentId,
+          status: rec.status,
+          remarks: rec.remarks || null,
+        });
+      } else {
+        record.status = rec.status;
+        record.remarks = rec.remarks || null;
+      }
+      await this.attendanceRecordRepository.save(record);
+    }
+
+    return this.getAttendanceDetails(attendance.id);
+  }
+
+  async getBatchAttendanceLogs(batchId: number): Promise<any[]> {
+    await this.findOneBatch(batchId);
+
+    const logs = await this.attendanceRepository.find({
+      where: { batchId },
+      relations: { takenByUser: true, records: true },
+      order: { date: 'DESC' },
+    });
+
+    return logs.map((log) => {
+      const stats = {
+        present: 0,
+        absent: 0,
+        late: 0,
+        excused: 0,
+        total: log.records.length,
+      };
+
+      log.records.forEach((rec) => {
+        if (rec.status === 'PRESENT') stats.present++;
+        else if (rec.status === 'ABSENT') stats.absent++;
+        else if (rec.status === 'LATE') stats.late++;
+        else if (rec.status === 'EXCUSED') stats.excused++;
+      });
+
+      return {
+        id: log.id,
+        date: log.date,
+        takenByUser: log.takenByUser
+          ? { id: log.takenByUser.id, firstName: log.takenByUser.firstName, lastName: log.takenByUser.lastName }
+          : null,
+        stats,
+      };
+    });
+  }
+
+  async getAttendanceDetails(id: number): Promise<Attendance> {
+    const attendance = await this.attendanceRepository.findOne({
+      where: { id },
+      relations: {
+        batch: true,
+        takenByUser: true,
+        records: {
+          student: {
+            user: true,
+          },
+        },
+      },
+    });
+
+    if (!attendance) {
+      throw new NotFoundException(`Attendance session with ID ${id} not found`);
+    }
+
+    return attendance;
+  }
+
+  async getStudentAttendanceSummary(studentId: number): Promise<any> {
+    const student = await this.studentRepository.findOne({
+      where: { id: studentId },
+      relations: { batch: true },
+    });
+
+    if (!student) {
+      throw new NotFoundException(`Student with ID ${studentId} not found`);
+    }
+
+    const records = await this.attendanceRecordRepository.find({
+      where: { studentId },
+      relations: { attendance: true },
+    });
+
+    const stats = {
+      present: 0,
+      absent: 0,
+      late: 0,
+      excused: 0,
+      total: records.length,
+      attendancePercentage: 0,
+    };
+
+    records.forEach((rec) => {
+      if (rec.status === 'PRESENT') stats.present++;
+      else if (rec.status === 'ABSENT') stats.absent++;
+      else if (rec.status === 'LATE') stats.late++;
+      else if (rec.status === 'EXCUSED') stats.excused++;
+    });
+
+    if (stats.total > 0) {
+      const attended = stats.present + stats.late + stats.excused;
+      stats.attendancePercentage = Math.round((attended / stats.total) * 100);
+    }
+
+    return {
+      studentId,
+      batch: student.batch,
+      stats,
+      records: records
+        .map((rec) => ({
+          id: rec.id,
+          date: rec.attendance.date,
+          status: rec.status,
+          remarks: rec.remarks,
+        }))
+        .sort((a, b) => b.date.localeCompare(a.date)),
+    };
+  }
+
+  async getStudentAttendanceHistory(userId: string): Promise<any> {
+    const student = await this.findStudentByUserId(userId);
+    return this.getStudentAttendanceSummary(student.id);
+  }
+
+  // ==========================================
+  // TEACHER ATTENDANCE MODULE
+  // ==========================================
+
+  async teacherCheckIn(userId: string, date: string, checkInTime: Date, remarks?: string): Promise<TeacherAttendance> {
+    let attendance = await this.teacherAttendanceRepository.findOne({
+      where: { userId: String(userId), date },
+    });
+
+    if (!attendance) {
+      attendance = this.teacherAttendanceRepository.create({
+        userId: String(userId),
+        date,
+        status: 'PRESENT',
+        checkInTime,
+        remarks: remarks || null,
+      });
+    } else {
+      attendance.checkInTime = checkInTime;
+      if (remarks) attendance.remarks = remarks;
+    }
+
+    return this.teacherAttendanceRepository.save(attendance);
+  }
+
+  async teacherCheckOut(userId: string, date: string, checkOutTime: Date): Promise<TeacherAttendance> {
+    const attendance = await this.teacherAttendanceRepository.findOne({
+      where: { userId: String(userId), date },
+    });
+
+    if (!attendance) {
+      const newAttendance = this.teacherAttendanceRepository.create({
+        userId: String(userId),
+        date,
+        status: 'PRESENT',
+        checkOutTime,
+      });
+      return this.teacherAttendanceRepository.save(newAttendance);
+    }
+
+    attendance.checkOutTime = checkOutTime;
+    return this.teacherAttendanceRepository.save(attendance);
+  }
+
+  async getTeacherTodayStatus(userId: string, date: string): Promise<TeacherAttendance | null> {
+    return this.teacherAttendanceRepository.findOne({
+      where: { userId: String(userId), date },
+    });
+  }
+
+  async getTeacherAttendanceHistory(userId: string): Promise<TeacherAttendance[]> {
+    return this.teacherAttendanceRepository.find({
+      where: { userId: String(userId) },
+      order: { date: 'DESC' },
+    });
+  }
+
+  async getDailyTeacherSheet(date: string): Promise<any[]> {
+    const teachers = await this.userRepository.find({
+      where: { roleId: 2, isActive: true },
+      order: { firstName: 'ASC', lastName: 'ASC' },
+    });
+
+    const attendanceLogs = await this.teacherAttendanceRepository.find({
+      where: { date },
+    });
+
+    return teachers.map((teacher) => {
+      const log = attendanceLogs.find((l) => String(l.userId) === String(teacher.id));
+      return {
+        teacher: {
+          id: teacher.id,
+          firstName: teacher.firstName,
+          lastName: teacher.lastName,
+          email: teacher.email,
+        },
+        attendance: log
+          ? {
+              id: log.id,
+              status: log.status,
+              checkInTime: log.checkInTime,
+              checkOutTime: log.checkOutTime,
+              remarks: log.remarks,
+            }
+          : {
+              id: null,
+              status: 'NOT_MARKED',
+              checkInTime: null,
+              checkOutTime: null,
+              remarks: null,
+            },
+      };
+    });
+  }
+
+  async markTeacherAttendance(
+    userId: string,
+    date: string,
+    status: string,
+    checkInTime?: Date,
+    checkOutTime?: Date,
+    remarks?: string,
+  ): Promise<TeacherAttendance> {
+    const validStatuses = ['PRESENT', 'ABSENT', 'LATE', 'LEAVE'];
+    if (!validStatuses.includes(status)) {
+      throw new BadRequestException(`Invalid status: ${status}`);
+    }
+
+    let attendance = await this.teacherAttendanceRepository.findOne({
+      where: { userId: String(userId), date },
+    });
+
+    if (!attendance) {
+      attendance = this.teacherAttendanceRepository.create({
+        userId: String(userId),
+        date,
+        status,
+        checkInTime: checkInTime || null,
+        checkOutTime: checkOutTime || null,
+        remarks: remarks || null,
+      });
+    } else {
+      attendance.status = status;
+      if (checkInTime !== undefined) attendance.checkInTime = checkInTime;
+      if (checkOutTime !== undefined) attendance.checkOutTime = checkOutTime;
+      if (remarks !== undefined) attendance.remarks = remarks;
+    }
+
+    return this.teacherAttendanceRepository.save(attendance);
   }
 }

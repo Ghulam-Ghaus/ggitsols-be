@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { AcademicService } from './academic.service';
 import { AuthGuard } from '../common/guards/auth.guard';
 import { RolesGuard } from '../common/guards/roles.guard';
@@ -202,5 +202,133 @@ export class AcademicController {
   ) {
     const student = await this.academicService.findStudentByUserId(req.user.id);
     return this.academicService.submitQuizAttempt(Number(attemptId), student.id, body.answers);
+  }
+
+  // ==========================================
+  // STUDENT ATTENDANCE ENDPOINTS
+  // ==========================================
+
+  @Post('attendance')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN', 'TEACHER')
+  async submitStudentAttendance(
+    @Request() req: any,
+    @Body() body: {
+      batchId: number;
+      date: string;
+      records: { studentId: number; status: string; remarks?: string }[];
+    },
+  ) {
+    return this.academicService.submitStudentAttendance(
+      body.batchId,
+      body.date,
+      req.user.id,
+      body.records,
+    );
+  }
+
+  @Get('batches/:id/attendance')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN', 'TEACHER')
+  async getBatchAttendanceLogs(@Param('id') id: string) {
+    return this.academicService.getBatchAttendanceLogs(Number(id));
+  }
+
+  @Get('attendance/:id')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN', 'TEACHER')
+  async getAttendanceDetails(@Param('id') id: string) {
+    return this.academicService.getAttendanceDetails(Number(id));
+  }
+
+  @Get('students/:studentId/attendance-summary')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN', 'TEACHER')
+  async getStudentAttendanceSummary(@Param('studentId') studentId: string) {
+    return this.academicService.getStudentAttendanceSummary(Number(studentId));
+  }
+
+  @Get('students/me/attendance')
+  @UseGuards(AuthGuard)
+  async getMyAttendanceHistory(@Request() req: any) {
+    return this.academicService.getStudentAttendanceHistory(req.user.id);
+  }
+
+  // ==========================================
+  // TEACHER ATTENDANCE ENDPOINTS
+  // ==========================================
+
+  @Post('teacher-attendance/check-in')
+  @UseGuards(AuthGuard)
+  async teacherCheckIn(
+    @Request() req: any,
+    @Body() body: { date: string; checkInTime: string; remarks?: string },
+  ) {
+    return this.academicService.teacherCheckIn(
+      req.user.id,
+      body.date,
+      new Date(body.checkInTime),
+      body.remarks,
+    );
+  }
+
+  @Post('teacher-attendance/check-out')
+  @UseGuards(AuthGuard)
+  async teacherCheckOut(
+    @Request() req: any,
+    @Body() body: { date: string; checkOutTime: string },
+  ) {
+    return this.academicService.teacherCheckOut(
+      req.user.id,
+      body.date,
+      new Date(body.checkOutTime),
+    );
+  }
+
+  @Get('teacher-attendance/today')
+  @UseGuards(AuthGuard)
+  async getTeacherTodayStatus(
+    @Request() req: any,
+    @Query('date') dateQuery?: string,
+  ) {
+    const todayStr = dateQuery || new Date().toLocaleDateString('en-CA');
+    return this.academicService.getTeacherTodayStatus(req.user.id, todayStr);
+  }
+
+  @Get('teacher-attendance/me')
+  @UseGuards(AuthGuard)
+  async getMyTeacherAttendanceHistory(@Request() req: any) {
+    return this.academicService.getTeacherAttendanceHistory(req.user.id);
+  }
+
+  @Get('teacher-attendance/daily')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async getDailyTeacherSheet(@Query('date') dateQuery?: string) {
+    const todayStr = dateQuery || new Date().toLocaleDateString('en-CA');
+    return this.academicService.getDailyTeacherSheet(todayStr);
+  }
+
+  @Post('teacher-attendance/daily')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  async markTeacherAttendance(
+    @Body() body: {
+      userId: string;
+      date: string;
+      status: string;
+      checkInTime?: string;
+      checkOutTime?: string;
+      remarks?: string;
+    },
+  ) {
+    return this.academicService.markTeacherAttendance(
+      body.userId,
+      body.date,
+      body.status,
+      body.checkInTime ? new Date(body.checkInTime) : undefined,
+      body.checkOutTime ? new Date(body.checkOutTime) : undefined,
+      body.remarks,
+    );
   }
 }

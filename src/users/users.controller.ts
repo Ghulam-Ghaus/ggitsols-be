@@ -85,6 +85,12 @@ export class UsersController {
     if (loggedInUser.role !== 'ADMIN' && String(loggedInUser.id) !== id) {
       throw new ForbiddenException('You are not authorized to update this profile');
     }
+
+    // Safeguard: Only allow ADMIN users to perform password resets
+    if (updateUserDto.password && loggedInUser.role !== 'ADMIN') {
+      throw new ForbiddenException('Password resets can only be performed by administrators.');
+    }
+
     return this.usersService.update(id, updateUserDto);
   }
 
