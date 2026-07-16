@@ -9,6 +9,7 @@ import { Expense, ExpenseStatus } from './entities/expense.entity';
 import { FounderTransaction, FounderTransactionType } from './entities/founder-transaction.entity';
 import { Student } from '../academic/entities/student.entity';
 import { User } from '../users/entities/user.entity';
+import { Parent } from '../academic/entities/parent.entity';
 
 // Import the two notification services with aliases
 import { NotificationService as DbNotificationService } from '../common/services/notification.service';
@@ -585,6 +586,14 @@ export class FinanceService {
       students.push(savedStudent);
     }
 
+    // Create Parent User and Profile
+    const parentUser = await createUserDirect('parent@ggit.com', 'Sarah', 'Parent', 4);
+    const parent = this.studentRepository.manager.create(Parent, {
+      userId: parentUser.id,
+      students: [students[0], students[1]]
+    });
+    await this.studentRepository.manager.save(Parent, parent);
+
     // Seed Co-founder Investments ($30,000 each)
     const ft1 = this.founderTransactionRepository.create({
       founderId: founder1.id,
@@ -757,5 +766,49 @@ export class FinanceService {
       where: { studentId: student.id },
       order: { dueDate: 'DESC' },
     });
+  }
+
+  async getTeacherSalaries(userId: string): Promise<SalarySlip[]> {
+    return this.salarySlipRepository.find({
+      where: { userId },
+      order: { month: 'DESC' },
+    });
+  }
+
+  async getParentStudentFees(parentUserId: string, studentId: number): Promise<FeeCollection[]> {
+    const parent = await this.feeCollectionRepository.manager.findOne(Parent, {
+      where: { userId: parentUserId },
+      relations: { students: true },
+    });
+    if (!parent) {
+      throw new NotFoundException(`Parent profile not found`);
+    }
+    const isChild = parent.students.some((s) => Number(s.id) === studentId);
+    if (!isChild) {
+      throw new BadRequestException('Authorized child matching student ID not found');
+    }
+    return this.feeCollectionRepository.find({
+      where: { studentId },
+      order: { dueDate: 'DESC' },
+    });
+  }
+
+  async payParentStudentFee(parentUserId: string, studentId: number, feeId: number, amount: number): Promise<any> {
+    const parent = await this.feeCollectionRepository.manager.findOne(Parent, {
+      where: { userId: parentUserId },
+      relations: { students: true },
+    });
+    if (!parent) {
+      throw new NotFoundException(`Parent profile not found`);
+    }
+    const isChild = parent.students.some((s) => Number(s.id) === studentId);
+    if (!isChild) {
+      throw new BadRequestException('Authorized child matching student ID not found');
+    }
+    const fee = await this.feeCollectionRepository.findOne({ where: { id: feeId, studentId } });
+    if (!fee) {
+      throw new NotFoundException('Fee invoice not found for this student');
+    }
+    return this.recordFeePayment(feeId, { amount }, parentUserId);
   }
 }

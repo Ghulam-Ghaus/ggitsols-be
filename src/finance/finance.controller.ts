@@ -45,6 +45,32 @@ export class FinanceController {
     return this.financeService.recordFeePayment(id, dto, req.user.id);
   }
 
+  @Get('my-salaries')
+  @Roles('TEACHER', 'ADMIN')
+  async getMySalaries(@Request() req: any) {
+    return this.financeService.getTeacherSalaries(req.user.id);
+  }
+
+  @Get('parents/students/:studentId/fees')
+  @Roles('PARENT', 'ADMIN')
+  async getParentStudentFees(
+    @Param('studentId', ParseIntPipe) studentId: number,
+    @Request() req: any,
+  ) {
+    return this.financeService.getParentStudentFees(req.user.id, studentId);
+  }
+
+  @Post('parents/students/:studentId/fees/:feeId/pay')
+  @Roles('PARENT', 'ADMIN')
+  async payParentStudentFee(
+    @Param('studentId', ParseIntPipe) studentId: number,
+    @Param('feeId', ParseIntPipe) feeId: number,
+    @Body() dto: RecordFeePaymentDto,
+    @Request() req: any,
+  ) {
+    return this.financeService.payParentStudentFee(req.user.id, studentId, feeId, dto.amount);
+  }
+
   // ==========================================
   // FEE COLLECTIONS (ADMIN-ONLY)
   // ==========================================

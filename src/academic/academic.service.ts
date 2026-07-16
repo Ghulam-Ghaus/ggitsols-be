@@ -14,6 +14,7 @@ import { Attendance } from './entities/attendance.entity';
 import { AttendanceRecord } from './entities/attendance-record.entity';
 import { TeacherAttendance } from './entities/teacher-attendance.entity';
 import { User } from '../users/entities/user.entity';
+import { Parent } from './entities/parent.entity';
 
 @Injectable()
 export class AcademicService {
@@ -840,5 +841,48 @@ export class AcademicService {
     }
 
     return this.teacherAttendanceRepository.save(attendance);
+  }
+
+  async getParentStudents(parentUserId: string): Promise<Student[]> {
+    const parent = await this.studentRepository.manager.findOne(Parent, {
+      where: { userId: parentUserId },
+      relations: { students: { user: true, batch: { course: true } } },
+    });
+    if (!parent) {
+      throw new NotFoundException(`Parent profile not found for user ID ${parentUserId}`);
+    }
+    return parent.students;
+  }
+
+  async verifyParentChild(parentUserId: string, studentId: number): Promise<void> {
+    const parent = await this.studentRepository.manager.findOne(Parent, {
+      where: { userId: parentUserId },
+      relations: { students: true },
+    });
+    if (!parent) {
+      throw new NotFoundException('Parent profile not found');
+    }
+    const isChild = parent.students.some((s) => Number(s.id) === studentId);
+    if (!isChild) {
+      throw new BadRequestException('Authorized child matching student ID not found');
+    }
+  }
+
+  async getChildDetails(parentUserId: string, studentId: number) {
+    await this.verifyParentChild(parentUserId, studentId);
+    const student = await this.studentRepository.findOne({ where: { id: studentId } });
+    if (!student) {
+      throw new NotFoundException('Student record not found');
+    }
+    return this.getStudentFullDetails(student.userId);
+  }
+
+  async getChildAttendance(parentUserId: string, studentId: number) {
+    await this.verifyParentChild(parentUserId, studentId);
+    const student = await this.studentRepository.findOne({ where: { id: studentId } });
+    if (!student) {
+      throw new NotFoundException('Student record not found');
+    }
+    return this.getStudentAttendanceHistory(student.userId);
   }
 }

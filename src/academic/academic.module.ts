@@ -11,6 +11,7 @@ import { MeetingReview } from './entities/meeting-review.entity';
 import { Attendance } from './entities/attendance.entity';
 import { AttendanceRecord } from './entities/attendance-record.entity';
 import { TeacherAttendance } from './entities/teacher-attendance.entity';
+import { Parent } from './entities/parent.entity';
 import { AcademicService } from './academic.service';
 import { AcademicController } from './academic.controller';
 
@@ -28,6 +29,7 @@ import { AcademicController } from './academic.controller';
       Attendance,
       AttendanceRecord,
       TeacherAttendance,
+      Parent,
     ]),
   ],
   providers: [AcademicService],

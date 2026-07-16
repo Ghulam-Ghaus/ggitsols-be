@@ -331,4 +331,35 @@ export class AcademicController {
       body.remarks,
     );
   }
+
+  // ==========================================
+  // PARENT PORTAL ENDPOINTS
+  // ==========================================
+
+  @Get('parents/my-students')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('PARENT', 'ADMIN')
+  async getParentStudents(@Request() req: any) {
+    return this.academicService.getParentStudents(req.user.id);
+  }
+
+  @Get('parents/students/:studentId/details')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('PARENT', 'ADMIN')
+  async getChildDetails(
+    @Param('studentId') studentId: string,
+    @Request() req: any,
+  ) {
+    return this.academicService.getChildDetails(req.user.id, Number(studentId));
+  }
+
+  @Get('parents/students/:studentId/attendance')
+  @UseGuards(AuthGuard, RolesGuard)
+  @Roles('PARENT', 'ADMIN')
+  async getChildAttendance(
+    @Param('studentId') studentId: string,
+    @Request() req: any,
+  ) {
+    return this.academicService.getChildAttendance(req.user.id, Number(studentId));
+  }
 }
