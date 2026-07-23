@@ -146,7 +146,13 @@ export class AcademicController {
   @Roles('ADMIN')
   async updateStudent(
     @Param('id') id: string,
-    @Body() body: { registrationNo?: string; batchId?: number | null },
+    @Body() body: {
+      registrationNo?: string;
+      batchId?: number | null;
+      paymentOption?: 'FULL_PAYMENT' | 'INSTALLMENT';
+      discountPercentage?: number;
+      discountFlat?: number;
+    },
   ) {
     return this.academicService.updateStudent(Number(id), body);
   }

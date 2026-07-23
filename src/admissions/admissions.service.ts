@@ -81,6 +81,7 @@ export class AdmissionsService {
         userId: user.id,
         registrationNo,
         admissionDate: new Date().toISOString().split('T')[0], // yyyy-mm-dd
+        paymentOption: savedApp.paymentOption || 'INSTALLMENT',
       });
       student = await this.studentRepository.save(student);
     }
@@ -299,6 +300,7 @@ export class AdmissionsService {
           boardUniversity: app.boardUniversity,
           completionYear: app.completionYear,
           obtainedGpa: app.obtainedGpa,
+          paymentOption: app.paymentOption || 'INSTALLMENT',
         });
         student = await this.studentRepository.save(student);
       }

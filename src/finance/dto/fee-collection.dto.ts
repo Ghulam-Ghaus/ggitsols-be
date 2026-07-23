@@ -14,6 +14,16 @@ export class CreateFeeCollectionDto {
   @IsNotEmpty()
   totalAmount: number;
 
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  originalAmount?: number;
+
+  @IsNumber()
+  @Min(0)
+  @IsOptional()
+  discountAmount?: number;
+
   @IsDateString()
   @IsNotEmpty()
   dueDate: string;

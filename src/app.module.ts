@@ -2,6 +2,7 @@ import { Module, ValidationPipe } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_PIPE, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -54,6 +55,7 @@ import { AuditLogInterceptor } from './common/interceptors/audit-log.interceptor
     }),
     
     CommonModule,
+    ScheduleModule.forRoot(),
     UsersModule,
     VoiceModule,
     NotificationModule,

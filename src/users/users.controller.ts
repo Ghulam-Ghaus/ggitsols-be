@@ -28,6 +28,10 @@ export class UsersController {
 
   @Post('register')
   async register(@Body() createUserDto: CreateUserDto) {
+    const roleId = createUserDto.roleId || 3; // Default to student if not provided
+    if (roleId === 1 || roleId === 2 || roleId === 4) {
+      throw new ForbiddenException('Admin, Teacher, and Parent roles can only be created by an administrator');
+    }
     return this.usersService.create(createUserDto);
   }
 

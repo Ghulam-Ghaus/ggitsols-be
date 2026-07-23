@@ -528,7 +528,16 @@ export class AcademicService {
     });
   }
 
-  async updateStudent(id: number, data: { registrationNo?: string; batchId?: number | null }): Promise<Student> {
+  async updateStudent(
+    id: number,
+    data: {
+      registrationNo?: string;
+      batchId?: number | null;
+      paymentOption?: 'FULL_PAYMENT' | 'INSTALLMENT';
+      discountPercentage?: number;
+      discountFlat?: number;
+    },
+  ): Promise<Student> {
     const student = await this.studentRepository.findOne({ where: { id } });
     if (!student) {
       throw new NotFoundException(`Student with ID ${id} not found`);
@@ -540,6 +549,18 @@ export class AcademicService {
 
     if (data.batchId !== undefined) {
       student.batchId = data.batchId;
+    }
+
+    if (data.paymentOption !== undefined) {
+      student.paymentOption = data.paymentOption;
+    }
+
+    if (data.discountPercentage !== undefined) {
+      student.discountPercentage = data.discountPercentage;
+    }
+
+    if (data.discountFlat !== undefined) {
+      student.discountFlat = data.discountFlat;
     }
 
     return this.studentRepository.save(student);

@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, LessThan, Like } from 'typeorm';
+import { Cron } from '@nestjs/schedule';
 import * as bcrypt from 'bcrypt';
 import { Transaction, TransactionType, TransactionCategory } from './entities/transaction.entity';
 import { FeeCollection, FeeStatus } from './entities/fee-collection.entity';
@@ -99,6 +100,8 @@ export class FinanceService {
       dueDate: dto.dueDate,
       status: FeeStatus.PENDING,
       tags: dto.tags || [],
+      originalAmount: dto.originalAmount !== undefined ? dto.originalAmount : dto.totalAmount,
+      discountAmount: dto.discountAmount !== undefined ? dto.discountAmount : 0,
     });
 
     const saved = await this.feeCollectionRepository.save(feeCollection);
@@ -107,7 +110,7 @@ export class FinanceService {
     if (student.user) {
       const email = student.user.email;
       const phone = student.user.phone;
-      const amountStr = `$${dto.totalAmount.toFixed(2)}`;
+      const amountStr = `Rs. ${dto.totalAmount.toFixed(2)}`;
       const title = 'New Fee Invoice Generated';
       const msg = `An invoice ${invoiceNumber} for ${amountStr} has been generated for term ${dto.academicTerm}. Due date: ${dto.dueDate}.`;
 
@@ -161,7 +164,7 @@ export class FinanceService {
     const studentUser = feeCollection.student?.user;
     if (studentUser) {
       const title = 'Fee Payment Received';
-      const msg = `We received payment of $${dto.amount.toFixed(2)} for Invoice ${feeCollection.invoiceNumber}. Current status: ${feeCollection.status}.`;
+      const msg = `We received payment of Rs. ${dto.amount.toFixed(2)} for Invoice ${feeCollection.invoiceNumber}. Current status: ${feeCollection.status}.`;
 
       await this.dbNotificationService.sendNotification(studentUser.id, title, msg);
       await this.externalNotificationService.sendEmail(studentUser.email, title, `<p>${msg}</p>`);
@@ -193,7 +196,7 @@ export class FinanceService {
       const studentUser = inv.student?.user;
       if (studentUser) {
         const title = 'ALERT: Fee Payment Overdue';
-        const msg = `Your payment for invoice ${inv.invoiceNumber} ($${inv.totalAmount}) was due on ${inv.dueDate} and is now OVERDUE. Please clear this immediately.`;
+        const msg = `Your payment for invoice ${inv.invoiceNumber} (Rs. ${inv.totalAmount}) was due on ${inv.dueDate} and is now OVERDUE. Please clear this immediately.`;
 
         await this.dbNotificationService.sendNotification(studentUser.id, title, msg);
         await this.externalNotificationService.sendEmail(studentUser.email, title, `<p style="color: red;"><b>${msg}</b></p>`);
@@ -244,7 +247,7 @@ export class FinanceService {
     });
 
     const title = 'New Salary Slip Awaiting Approval';
-    const msg = `A salary slip for ${employee.firstName} ${employee.lastName} ($${netSalary.toFixed(2)}) for month ${dto.month} has been submitted and is awaiting approval.`;
+    const msg = `A salary slip for ${employee.firstName} ${employee.lastName} (Rs. ${netSalary.toFixed(2)}) for month ${dto.month} has been submitted and is awaiting approval.`;
 
     for (const admin of admins) {
       await this.dbNotificationService.sendNotification(admin.id, title, msg);
@@ -285,7 +288,7 @@ export class FinanceService {
         // Notify employee
         const employee = salarySlip.user;
         const title = 'Salary Payout Credited';
-        const msg = `Your salary of $${salarySlip.netSalary.toFixed(2)} for ${salarySlip.month} has been successfully paid via ${salarySlip.paymentMethod}.`;
+        const msg = `Your salary of Rs. ${salarySlip.netSalary.toFixed(2)} for ${salarySlip.month} has been successfully paid via ${salarySlip.paymentMethod}.`;
 
         await this.dbNotificationService.sendNotification(employee.id, title, msg);
         await this.externalNotificationService.sendEmail(employee.email, title, `<p>${msg}</p>`);
@@ -507,7 +510,7 @@ export class FinanceService {
       const returnsDiff = Math.abs(f1.totalWithdrawn - f2.totalWithdrawn);
 
       if (investDiff > 0.01 || returnsDiff > 0.01) {
-        ratioMessage = `Warning: Co-founders are out of sync. Investment diff: $${investDiff.toFixed(2)}, returns diff: $${returnsDiff.toFixed(2)}`;
+        ratioMessage = `Warning: Co-founders are out of sync. Investment diff: Rs. ${investDiff.toFixed(2)}, returns diff: Rs. ${returnsDiff.toFixed(2)}`;
         parityDiscrepancy = Math.max(investDiff, returnsDiff);
       }
     } else if (summaryList.length === 1) {
@@ -810,5 +813,181 @@ export class FinanceService {
       throw new NotFoundException('Fee invoice not found for this student');
     }
     return this.recordFeePayment(feeId, { amount }, parentUserId);
+  }
+
+  // ==========================================
+  // AUTOMATED MONTHLY BILLING RUN
+  // ==========================================
+
+  @Cron('0 0 1 * *') // Runs at 12:00 AM on the 1st of every month
+  async handleMonthlyInvoicing() {
+    try {
+      await this.runMonthlyBillingForDate(new Date());
+    } catch (err: any) {
+      const logger = new Logger('FinanceService-Cron');
+      logger.error(`Failed to execute monthly billing cron job: ${err.message}`);
+    }
+  }
+
+  async runMonthlyBillingForDate(targetDate: Date): Promise<{ message: string; invoicesCreated: number }> {
+    const logger = new Logger('FinanceService-Cron');
+    logger.log(`Executing monthly billing run for date: ${targetDate.toISOString()}`);
+
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    const targetMonthName = `${monthNames[targetDate.getMonth()]} ${targetDate.getFullYear()}`;
+
+    const prevDate = new Date(targetDate.getFullYear(), targetDate.getMonth() - 1, 1);
+    const prevMonthName = `${monthNames[prevDate.getMonth()]} ${prevDate.getFullYear()}`;
+    const prevMonthIdx = prevDate.getMonth();
+    const prevYear = prevDate.getFullYear();
+
+    // Fetch all active students assigned to a batch
+    const students = await this.studentRepository.find({
+      relations: { user: true, batch: { course: true } },
+    });
+
+    let invoicesCreated = 0;
+
+    for (const student of students) {
+      if (!student.user || !student.user.isActive || !student.batch || !student.batch.course) {
+        continue;
+      }
+
+      if (student.paymentOption === 'FULL_PAYMENT') {
+        continue;
+      }
+
+      const monthlyFee = Number(student.batch.course.monthlyFee);
+      if (monthlyFee <= 0) {
+        continue;
+      }
+
+      // Check if student started in the previous month (prorated invoice check)
+      if (student.admissionDate) {
+        const admission = new Date(student.admissionDate);
+        const admissionMonth = admission.getMonth();
+        const admissionYear = admission.getFullYear();
+        const admissionDay = admission.getDate();
+
+        if (admissionMonth === prevMonthIdx && admissionYear === prevYear) {
+          const proratedTerm = `${prevMonthName} (Prorated)`;
+          const existingProrated = await this.feeCollectionRepository.findOne({
+            where: { studentId: student.id, academicTerm: proratedTerm },
+          });
+
+          if (!existingProrated) {
+            const totalDaysInPrevMonth = new Date(prevYear, prevMonthIdx + 1, 0).getDate();
+            
+            if (admissionDay > 1) {
+              const activeDays = totalDaysInPrevMonth - admissionDay + 1;
+              const prorateFactor = activeDays / totalDaysInPrevMonth;
+              const proratedBase = monthlyFee * prorateFactor;
+
+              let discountAmount = 0;
+              const pct = Number(student.discountPercentage || 0);
+              const flat = Number(student.discountFlat || 0);
+
+              if (pct > 0) {
+                discountAmount = proratedBase * (pct / 100);
+              } else if (flat > 0) {
+                discountAmount = Math.min(flat, proratedBase);
+              }
+
+              const totalAmount = proratedBase - discountAmount;
+
+              const rand = Math.floor(1000 + Math.random() * 9000);
+              const invoiceNumber = `INV-${targetDate.getFullYear()}-PRO-${Date.now().toString().slice(-4)}-${rand}`;
+              const dueDateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-10`;
+
+              const proratedInvoice = this.feeCollectionRepository.create({
+                invoiceNumber,
+                studentId: student.id,
+                academicTerm: proratedTerm,
+                originalAmount: proratedBase,
+                discountAmount,
+                totalAmount,
+                paidAmount: 0,
+                dueDate: dueDateStr,
+                status: FeeStatus.PENDING,
+                tags: ['Prorated', 'Auto-Generated'],
+              });
+
+              await this.feeCollectionRepository.save(proratedInvoice);
+              invoicesCreated++;
+
+              const title = 'Prorated Fee Invoice Generated';
+              const msg = `An invoice ${invoiceNumber} for Rs. ${totalAmount.toFixed(2)} (prorated for ${activeDays} days in ${prevMonthName}) has been generated. Due date: ${dueDateStr}.`;
+              await this.dbNotificationService.sendNotification(student.user.id, title, msg);
+              await this.externalNotificationService.sendEmail(student.user.email, title, `<p>${msg}</p>`);
+            } else {
+              const existingPrevFull = await this.feeCollectionRepository.findOne({
+                where: { studentId: student.id, academicTerm: prevMonthName },
+              });
+
+              if (!existingPrevFull) {
+                await this.createMonthlyInvoice(student, prevMonthName, monthlyFee, targetDate);
+                invoicesCreated++;
+              }
+            }
+          }
+        }
+      }
+
+      // Check if target month full invoice already exists
+      const existingTargetInvoice = await this.feeCollectionRepository.findOne({
+        where: { studentId: student.id, academicTerm: targetMonthName },
+      });
+
+      if (!existingTargetInvoice) {
+        await this.createMonthlyInvoice(student, targetMonthName, monthlyFee, targetDate);
+        invoicesCreated++;
+      }
+    }
+
+    return {
+      message: `Monthly billing run completed. Generated ${invoicesCreated} invoice(s).`,
+      invoicesCreated
+    };
+  }
+
+  private async createMonthlyInvoice(student: Student, term: string, monthlyFee: number, targetDate: Date) {
+    let discountAmount = 0;
+    const pct = Number(student.discountPercentage || 0);
+    const flat = Number(student.discountFlat || 0);
+
+    if (pct > 0) {
+      discountAmount = monthlyFee * (pct / 100);
+    } else if (flat > 0) {
+      discountAmount = Math.min(flat, monthlyFee);
+    }
+
+    const totalAmount = monthlyFee - discountAmount;
+
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    const invoiceNumber = `INV-${targetDate.getFullYear()}-MON-${Date.now().toString().slice(-4)}-${rand}`;
+    const dueDateStr = `${targetDate.getFullYear()}-${String(targetDate.getMonth() + 1).padStart(2, '0')}-10`;
+
+    const invoice = this.feeCollectionRepository.create({
+      invoiceNumber,
+      studentId: student.id,
+      academicTerm: term,
+      originalAmount: monthlyFee,
+      discountAmount,
+      totalAmount,
+      paidAmount: 0,
+      dueDate: dueDateStr,
+      status: FeeStatus.PENDING,
+      tags: ['Monthly', 'Auto-Generated'],
+    });
+
+    await this.feeCollectionRepository.save(invoice);
+
+    const title = 'Monthly Fee Invoice Generated';
+    const msg = `Your monthly invoice ${invoiceNumber} for Rs. ${totalAmount.toFixed(2)} has been generated for ${term}. Due date: ${dueDateStr}.`;
+    await this.dbNotificationService.sendNotification(student.user.id, title, msg);
+    await this.externalNotificationService.sendEmail(student.user.email, title, `<p>${msg}</p>`);
   }
 }

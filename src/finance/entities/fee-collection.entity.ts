@@ -41,6 +41,12 @@ export class FeeCollection {
   @Column({ type: 'jsonb', nullable: true })
   tags: string[];
 
+  @Column({ type: 'decimal', name: 'original_amount', precision: 10, scale: 2, default: 0.00 })
+  originalAmount: number;
+
+  @Column({ type: 'decimal', name: 'discount_amount', precision: 10, scale: 2, default: 0.00 })
+  discountAmount: number;
+
   @Column({ type: 'timestamp', name: 'invoiced_at', default: () => 'CURRENT_TIMESTAMP' })
   invoicedAt: Date;
 

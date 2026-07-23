@@ -191,4 +191,11 @@ export class FinanceController {
     const data = await this.financeService.seedTestData();
     return data;
   }
+
+  @Post('trigger-monthly-billing')
+  @Roles('ADMIN')
+  async triggerMonthlyBilling(@Body() body: { date?: string }) {
+    const targetDate = body.date ? new Date(body.date) : new Date();
+    return this.financeService.runMonthlyBillingForDate(targetDate);
+  }
 }

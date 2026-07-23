@@ -46,4 +46,13 @@ export class Student {
 
   @Column({ type: 'varchar', length: 20, name: 'obtained_gpa', nullable: true })
   obtainedGpa: string;
+
+  @Column({ type: 'varchar', length: 50, name: 'payment_option', default: 'INSTALLMENT' })
+  paymentOption: 'FULL_PAYMENT' | 'INSTALLMENT';
+
+  @Column({ type: 'decimal', name: 'discount_percentage', precision: 5, scale: 2, default: 0.00 })
+  discountPercentage: number;
+
+  @Column({ type: 'decimal', name: 'discount_flat', precision: 10, scale: 2, default: 0.00 })
+  discountFlat: number;
 }
