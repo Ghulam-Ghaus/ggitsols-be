@@ -102,6 +102,8 @@ export class FinanceService {
       tags: dto.tags || [],
       originalAmount: dto.originalAmount !== undefined ? dto.originalAmount : dto.totalAmount,
       discountAmount: dto.discountAmount !== undefined ? dto.discountAmount : 0,
+      studentDashboardFee: dto.originalAmount !== undefined ? dto.originalAmount : dto.totalAmount,
+      actualFee: dto.totalAmount,
     });
 
     const saved = await this.feeCollectionRepository.save(feeCollection);
@@ -650,6 +652,9 @@ export class FinanceService {
         status: FeeStatus.PAID,
         tags: ['Tuition'],
         paidAt: new Date('2026-07-08'),
+        originalAmount: 7000,
+        studentDashboardFee: 7000,
+        actualFee: 7000,
       });
       const savedFee = await this.feeCollectionRepository.save(fee);
       
@@ -913,6 +918,8 @@ export class FinanceService {
                 dueDate: dueDateStr,
                 status: FeeStatus.PENDING,
                 tags: ['Prorated', 'Auto-Generated'],
+                studentDashboardFee: proratedBase,
+                actualFee: totalAmount,
               });
 
               await this.feeCollectionRepository.save(proratedInvoice);
@@ -981,6 +988,8 @@ export class FinanceService {
       dueDate: dueDateStr,
       status: FeeStatus.PENDING,
       tags: ['Monthly', 'Auto-Generated'],
+      studentDashboardFee: monthlyFee,
+      actualFee: totalAmount,
     });
 
     await this.feeCollectionRepository.save(invoice);

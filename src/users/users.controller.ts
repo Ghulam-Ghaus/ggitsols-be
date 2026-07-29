@@ -9,6 +9,7 @@ import {
   UseGuards,
   Request,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -98,6 +99,35 @@ export class UsersController {
     return this.usersService.update(id, updateUserDto);
   }
 
+  @Post('forgot-password-code')
+  async forgotPasswordCode(@Body() body: { email: string }) {
+    if (!body.email) {
+      throw new BadRequestException('Email is required');
+    }
+    return this.usersService.sendForgotPasswordCode(body.email);
+  }
+
+  @Post('reset-password-with-code')
+  async resetPasswordWithCode(@Body() body: any) {
+    return this.usersService.resetPasswordWithCode(body);
+  }
+
+  @Post('verify-email')
+  async verifyEmail(@Body() body: { email: string; code: string }) {
+    if (!body.email || !body.code) {
+      throw new BadRequestException('Email and verification code are required');
+    }
+    return this.usersService.verifyEmail(body.email, body.code);
+  }
+
+  @Post('resend-verification-code')
+  async resendVerificationCode(@Body() body: { email: string }) {
+    if (!body.email) {
+      throw new BadRequestException('Email is required');
+    }
+    return this.usersService.sendVerificationCode(body.email);
+  }
+
   @Delete(':id')
   @UseGuards(AuthGuard, RolesGuard)
   @Roles('ADMIN')
@@ -105,3 +135,4 @@ export class UsersController {
     return this.usersService.remove(id);
   }
 }
+

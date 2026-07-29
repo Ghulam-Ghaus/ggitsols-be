@@ -16,9 +16,9 @@ export class VoiceService {
 
     if (geminiApiKey) {
       this.genAI = new GoogleGenerativeAI(geminiApiKey);
-      // Using gemini-1.5-flash for low latency and high quality
+      // Using gemini-2.5-flash for low latency and high quality
       this.geminiModel = this.genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.5-flash',
         systemInstruction: `
           You are Haider, the friendly and professional AI Voice Assistant for GG IT Solutions.
           Your goal is to assist website visitors, students, teachers, and parents.

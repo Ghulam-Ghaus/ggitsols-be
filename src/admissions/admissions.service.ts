@@ -10,6 +10,7 @@ import { User } from '../users/entities/user.entity';
 import { Student } from '../academic/entities/student.entity';
 import { Parent } from '../academic/entities/parent.entity';
 import { NotificationService } from '../notification/notification.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class AdmissionsService {
@@ -25,12 +26,32 @@ export class AdmissionsService {
     @InjectRepository(Parent)
     private readonly parentRepository: Repository<Parent>,
     private readonly emailNotificationService: NotificationService,
+    private readonly usersService: UsersService,
   ) {}
 
   /**
    * Submit a new student application
    */
   async apply(dto: CreateApplicationDto): Promise<Application> {
+    if (dto.guardianEmail && dto.email && dto.guardianEmail.toLowerCase().trim() === dto.email.toLowerCase().trim()) {
+      throw new BadRequestException('Guardian email and student email cannot be the same.');
+    }
+
+    if (dto.guardian2Email && dto.email && dto.guardian2Email.toLowerCase().trim() === dto.email.toLowerCase().trim()) {
+      throw new BadRequestException('Guardian 2 email and student email cannot be the same.');
+    }
+
+    if (dto.guardian2Email && dto.guardianEmail && dto.guardian2Email.toLowerCase().trim() === dto.guardianEmail.toLowerCase().trim()) {
+      throw new BadRequestException('Guardian 1 and Guardian 2 emails cannot be the same.');
+    }
+
+    const existingUser = await this.userRepository.findOne({
+      where: { email: dto.email.toLowerCase().trim(), isDeleted: false }
+    });
+    if (existingUser) {
+      throw new BadRequestException('This email is already registered.');
+    }
+
     const { documents, password, ...rest } = dto;
     
     const app = this.applicationRepository.create(rest);
@@ -51,6 +72,13 @@ export class AdmissionsService {
     }
 
     // Provision User and Student profiles immediately
+    const softDeletedStudent = await this.userRepository.findOne({
+      where: { email: savedApp.email, isDeleted: true }
+    });
+    if (softDeletedStudent) {
+      await this.usersService.hardDelete(softDeletedStudent.id);
+    }
+
     let user = await this.userRepository.findOne({ where: { email: savedApp.email } });
     if (!user) {
       // Use the hashed application password or fall back to default GGIT1234
@@ -69,6 +97,7 @@ export class AdmissionsService {
         roleId: 3, // STUDENT role ID
         phone: savedApp.phone,
         isActive: true, // Keep it active so they can log in for testing
+        isEmailVerified: false,
       });
       user = await this.userRepository.save(user);
     }
@@ -88,6 +117,13 @@ export class AdmissionsService {
 
     // Provision Parent/Guardian profile if guardianEmail is provided
     if (savedApp.guardianEmail) {
+      const softDeletedParent = await this.userRepository.findOne({
+        where: { email: savedApp.guardianEmail, isDeleted: true }
+      });
+      if (softDeletedParent) {
+        await this.usersService.hardDelete(softDeletedParent.id);
+      }
+
       let parentUser = await this.userRepository.findOne({ where: { email: savedApp.guardianEmail } });
       if (!parentUser) {
         const salt = await bcrypt.genSalt(10);
@@ -132,6 +168,13 @@ export class AdmissionsService {
 
     // Provision Secondary Parent/Guardian profile if guardian2Email is provided
     if (savedApp.guardian2Email) {
+      const softDeletedParent2 = await this.userRepository.findOne({
+        where: { email: savedApp.guardian2Email, isDeleted: true }
+      });
+      if (softDeletedParent2) {
+        await this.usersService.hardDelete(softDeletedParent2.id);
+      }
+
       let parent2User = await this.userRepository.findOne({ where: { email: savedApp.guardian2Email } });
       if (!parent2User) {
         const salt = await bcrypt.genSalt(10);
@@ -174,8 +217,8 @@ export class AdmissionsService {
       }
     }
 
-    // Generate dummy verification code
-    const verificationCode = Math.floor(100000 + Math.random() * 900000).toString();
+    // Generate and save active verification code
+    const verificationCode = await this.usersService.generateAndSaveVerificationCode(savedApp.email);
 
     // Send verification email
     const emailHtml = `
@@ -196,14 +239,15 @@ export class AdmissionsService {
               <td style="padding: 8px 0; color: #0f172a; font-weight: 500;">${savedApp.email}</td>
             </tr>
             <tr>
-              <td style="padding: 8px 0; color: #64748b; font-weight: 600;">Temp Password:</td>
-              <td style="padding: 8px 0; color: #0f172a; font-weight: 500;"><code>GGIT1234</code></td>
+              <td style="padding: 8px 0; color: #64748b; font-weight: 600;">Password:</td>
+              <td style="padding: 8px 0; color: #0f172a; font-weight: 500;"><code>${password || 'GGIT1234'}</code></td>
             </tr>
           </table>
         </div>
         <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; margin-bottom: 24px;">
           <p style="margin: 0 0 8px 0; color: #64748b; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Verification Code</p>
           <span style="font-size: 32px; font-weight: 800; color: #0f172a; letter-spacing: 4px;">${verificationCode}</span>
+          <p style="color: #ef4444; font-weight: bold; font-size: 13px; margin: 8px 0 0 0;">Do not share this OTP/Verification Code with anyone.</p>
         </div>
         <div style="font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 16px;">
           <p style="margin: 0;">GG IT Solutions ERP & LMS Platform. If you did not apply, please ignore this email.</p>
@@ -220,6 +264,55 @@ export class AdmissionsService {
     } catch (emailErr) {
       // Don't block application creation if email sending fails
       console.error('Failed to send verification email:', emailErr);
+    }
+
+    if (savedApp.guardianEmail) {
+      const guardianHtml = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+          <div style="text-align: center; margin-bottom: 24px;">
+            <h2 style="color: #3b82f6; margin: 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">GG IT Solutions</h2>
+            <p style="color: #64748b; font-size: 14px; margin-top: 4px;">Admissions Office</p>
+          </div>
+          <div style="background-color: #f8fafc; border-left: 4px solid #3b82f6; padding: 16px; margin-bottom: 24px;">
+            <h3 style="margin: 0; color: #0f172a; font-size: 16px; font-weight: 700;">Dear Guardian, ${savedApp.guardianName}</h3>
+            <p style="margin: 6px 0 0 0; color: #475569; font-size: 14px;">An admission application has been submitted by your ward/student.</p>
+          </div>
+          <div style="margin-bottom: 24px; color: #334155; font-size: 15px; line-height: 1.6;">
+            <p>Here are the details of the application received:</p>
+            <table style="width: 100%; border-collapse: collapse; margin-top: 12px;">
+              <tr>
+                <td style="padding: 8px 0; color: #64748b; font-weight: 600; width: 150px;">Student Name:</td>
+                <td style="padding: 8px 0; color: #0f172a; font-weight: 500;">${savedApp.fullName}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #64748b; font-weight: 600;">Student Email:</td>
+                <td style="padding: 8px 0; color: #0f172a; font-weight: 500;">${savedApp.email}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #64748b; font-weight: 600;">Relationship:</td>
+                <td style="padding: 8px 0; color: #0f172a; font-weight: 500;">${savedApp.guardianRelation || 'Guardian'}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #64748b; font-weight: 600;">Application Status:</td>
+                <td style="padding: 8px 0; color: #eab308; font-weight: bold;">UNDER REVIEW</td>
+              </tr>
+            </table>
+          </div>
+          <div style="font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 16px;">
+            <p style="margin: 0;">GG IT Solutions ERP & LMS Platform. If you did not authorize this application, please contact us immediately.</p>
+          </div>
+        </div>
+      `;
+
+      try {
+        await this.emailNotificationService.sendEmail(
+          savedApp.guardianEmail,
+          `Admission Application Received for ${savedApp.fullName}`,
+          guardianHtml,
+        );
+      } catch (emailErr) {
+        console.error('Failed to send guardian notification email:', emailErr);
+      }
     }
 
     const result = await this.applicationRepository.findOne({
@@ -263,8 +356,8 @@ export class AdmissionsService {
 
     // Provision User and Student profiles on approval
     if (dto.status === 'APPROVED') {
-      // 1. Check if user already exists
-      let user = await this.userRepository.findOne({ where: { email: app.email } });
+       // 1. Check if user already exists
+      let user = await this.userRepository.findOne({ where: { email: app.email, isDeleted: false } });
       
       if (!user) {
         // Use the hashed application password or fall back to default GGIT1234
@@ -307,7 +400,7 @@ export class AdmissionsService {
 
       // 3. Provision Parent/Guardian user & profile if guardianEmail is provided
       if (app.guardianEmail) {
-        let parentUser = await this.userRepository.findOne({ where: { email: app.guardianEmail } });
+        let parentUser = await this.userRepository.findOne({ where: { email: app.guardianEmail, isDeleted: false } });
         if (!parentUser) {
           const salt = await bcrypt.genSalt(10);
           const parentPasswordHash = await bcrypt.hash('GGIT1234', salt);
@@ -346,6 +439,75 @@ export class AdmissionsService {
           if (!parent.students.find(s => s.id === student.id)) {
             parent.students.push(student);
             await this.parentRepository.save(parent);
+          }
+        }
+      }
+
+      // 4. Provision Second Parent/Guardian user & profile if guardian2Email is provided
+      if (app.guardian2Email) {
+        let parent2User = await this.userRepository.findOne({ where: { email: app.guardian2Email, isDeleted: false } });
+        if (!parent2User) {
+          const salt = await bcrypt.genSalt(10);
+          const parentPasswordHash = await bcrypt.hash('GGIT1234', salt);
+
+          const guardian2Parts = app.guardian2Name ? app.guardian2Name.trim().split(/\s+/) : ['Guardian2'];
+          const parentFirstName = guardian2Parts[0] || 'Guardian2';
+          const parentLastName = guardian2Parts.slice(1).join(' ') || 'User';
+
+          parent2User = this.userRepository.create({
+            email: app.guardian2Email,
+            passwordHash: parentPasswordHash,
+            firstName: parentFirstName,
+            lastName: parentLastName,
+            roleId: 4, // PARENT role ID
+            phone: app.guardian2Phone,
+            isActive: true,
+          });
+          parent2User = await this.userRepository.save(parent2User);
+        }
+
+        let parent2 = await this.parentRepository.findOne({
+          where: { userId: parent2User.id },
+          relations: { students: true }
+        });
+        if (!parent2) {
+          parent2 = this.parentRepository.create({
+            userId: parent2User.id,
+            students: [student]
+          });
+          await this.parentRepository.save(parent2);
+        } else {
+          if (!parent2.students) {
+            parent2.students = [];
+          }
+          if (!parent2.students.find(s => s.id === student.id)) {
+            parent2.students.push(student);
+            await this.parentRepository.save(parent2);
+          }
+        }
+      }
+
+      // 5. If has sibling, automatically link to the sibling's existing parents
+      if (app.hasSibling && app.siblingRegistrationNo) {
+        const siblingStudent = await this.studentRepository.findOne({
+          where: { registrationNo: app.siblingRegistrationNo.trim() },
+          relations: { parents: true }
+        });
+        if (siblingStudent && siblingStudent.parents) {
+          for (const siblingParent of siblingStudent.parents) {
+            const pRecord = await this.parentRepository.findOne({
+              where: { id: siblingParent.id },
+              relations: { students: true }
+            });
+            if (pRecord) {
+              if (!pRecord.students) {
+                pRecord.students = [];
+              }
+              if (!pRecord.students.find(s => s.id === student.id)) {
+                pRecord.students.push(student);
+                await this.parentRepository.save(pRecord);
+              }
+            }
           }
         }
       }

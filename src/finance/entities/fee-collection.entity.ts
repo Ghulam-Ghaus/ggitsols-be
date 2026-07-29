@@ -47,6 +47,13 @@ export class FeeCollection {
   @Column({ type: 'decimal', name: 'discount_amount', precision: 10, scale: 2, default: 0.00 })
   discountAmount: number;
 
+  @Column({ type: 'decimal', name: 'student_dashboard_fee', precision: 10, scale: 2, default: 0.00 })
+  studentDashboardFee: number;
+
+  @Column({ type: 'decimal', name: 'actual_fee', precision: 10, scale: 2, default: 0.00 })
+  actualFee: number;
+
+
   @Column({ type: 'timestamp', name: 'invoiced_at', default: () => 'CURRENT_TIMESTAMP' })
   invoicedAt: Date;
 
