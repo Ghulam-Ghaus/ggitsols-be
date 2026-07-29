@@ -78,6 +78,26 @@ export class CreateApplicationDto {
 
   @IsString()
   @IsOptional()
+  highestQualification?: string;
+
+  @IsString()
+  @IsOptional()
+  institutionName?: string;
+
+  @IsString()
+  @IsOptional()
+  boardUniversity?: string;
+
+  @IsNumber()
+  @IsOptional()
+  completionYear?: number;
+
+  @IsString()
+  @IsOptional()
+  obtainedGpa?: string;
+
+  @IsString()
+  @IsOptional()
   paymentOption?: 'FULL_PAYMENT' | 'INSTALLMENT';
 
   @IsBoolean()
@@ -88,3 +108,4 @@ export class CreateApplicationDto {
   @IsOptional()
   password?: string;
 }
+

@@ -355,19 +355,24 @@ export class AdmissionsService {
   }
 
   /**
-   * Search for an existing guardian by email
+   * Search for an existing guardian by email or phone
    */
-  async findGuardianByEmail(email: string): Promise<any> {
+  async findGuardianByEmail(emailOrPhone: string): Promise<any> {
     const parentUser = await this.userRepository.findOne({
-      where: { email, roleId: 4 }, // roleId 4 is PARENT
+      where: [
+        { email: emailOrPhone, roleId: 4 },
+        { phone: emailOrPhone, roleId: 4 },
+      ],
     });
     if (parentUser) {
       return {
         exists: true,
         fullName: `${parentUser.firstName} ${parentUser.lastName}`.trim(),
         phone: parentUser.phone || '',
+        email: parentUser.email || '',
       };
     }
     return { exists: false };
   }
+
 }

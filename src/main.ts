@@ -1,6 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ConfigService } from '@nestjs/config';
+import * as express from 'express';
+import { join } from 'path';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -30,6 +32,9 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // Serve static files from uploads directory
+  app.use('/uploads', express.static(join(__dirname, '..', 'uploads')));
+
   // Retrieve port dynamically using ConfigService
   const port = configService.get<number>('PORT', 9000);
 
@@ -37,3 +42,4 @@ async function bootstrap() {
   console.log(`Application is running on: http://localhost:${port}`);
 }
 bootstrap();
+

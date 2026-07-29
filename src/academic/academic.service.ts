@@ -152,6 +152,28 @@ export class AcademicService {
     }
     await this.studentRepository.save(students);
 
+    // Automatically mark ABSENT for all historical attendance sessions of this batch
+    const sessions = await this.attendanceRepository.find({
+      where: { batchId }
+    });
+
+    for (const student of students) {
+      for (const session of sessions) {
+        const existingRecord = await this.attendanceRecordRepository.findOne({
+          where: { attendanceId: session.id, studentId: student.id }
+        });
+        if (!existingRecord) {
+          const rec = this.attendanceRecordRepository.create({
+            attendanceId: session.id,
+            studentId: student.id,
+            status: 'ABSENT',
+            remarks: 'Marked absent automatically for historical session prior to registration'
+          });
+          await this.attendanceRecordRepository.save(rec);
+        }
+      }
+    }
+
     return this.findOneBatch(batchId);
   }
 
@@ -375,24 +397,8 @@ export class AcademicService {
       order: { date: 'DESC' },
     });
 
-    // Auto-seed mock data if they have absolutely no records
-    if (quizAttempts.length === 0 && labs.length === 0 && reviews.length === 0) {
-      await this.seedStudentMockPerformance(student.id);
+    // Do not auto-seed mock data so that new students start with empty records.
 
-      quizAttempts = await this.quizAttemptRepository.find({
-        where: { studentId: student.id, status: 'SUBMITTED' },
-        relations: { quiz: true },
-        order: { submittedAt: 'DESC' },
-      });
-      labs = await this.labSubmissionRepository.find({
-        where: { studentId: student.id },
-        order: { submissionDate: 'DESC' },
-      });
-      reviews = await this.meetingReviewRepository.find({
-        where: { studentId: student.id },
-        order: { date: 'DESC' },
-      });
-    }
 
     return {
       student,
