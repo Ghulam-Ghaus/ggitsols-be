@@ -174,7 +174,8 @@ export class UsersService implements OnModuleInit {
   async findAll(): Promise<User[]> {
     return this.usersRepository.find({
       where: { isDeleted: false },
-      relations: { role: true }
+      relations: { role: true },
+      order: { createdAt: 'DESC' }
     });
   }
 
