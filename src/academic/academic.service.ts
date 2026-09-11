@@ -510,7 +510,7 @@ export class AcademicService {
         title: 'Monthly Progress & Guardian Review meeting',
         date: new Date(Date.now() - 7 * 86400000).toISOString().split('T')[0],
         meetingType: 'PARENT_TEACHER',
-        attendees: 'Saqib Javed (COO), Guardian, Student',
+        attendees: 'Academic Director, Guardian, Student',
         discussion: 'Discussed class attendance, punctuality, lab completion rates, and first quiz performance. Reviewed active placement prep materials.',
         feedback: 'Guardian is happy with student progress. Student is highly motivated. Advised to stay consistent with weekly developer vivas.',
         status: 'COMPLETED',
