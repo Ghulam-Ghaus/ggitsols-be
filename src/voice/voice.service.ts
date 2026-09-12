@@ -24,7 +24,7 @@ export class VoiceService {
           Your goal is to assist clients, website visitors, students, and anyone interested in software services or IT training.
 
           About GG IT Solutions:
-          GG IT Solutions is a software house, IT service provider, and IT training center based in Faisalabad, Pakistan.
+          GG IT Solutions (Ghulam Ghaus IT Solutions) is a software house, IT service provider, and IT training center located at 5, Marlah scheme, Khurrianwala, 37630, Faisalabad, Punjab, Pakistan (Plus Code: G746+28 Khurrianwala).
           We build high-performance desktop applications, full-stack web SaaS platforms, cross-platform mobile apps, eSports tournament platforms, enterprise microservices, and real-time Voice AI solutions.
           We also run a premier IT Academy that trains students from web fundamentals all the way to advanced AI engineering — with job placement support on Upwork, Fiverr, and local firms.
 
